@@ -88,33 +88,34 @@ int subtour_pick(const vector<vector<int>> &subtour_vector){ // escolhe o subtou
 }
 
 // Função core
-vector<vector<int>> generate_subtours(int **m, const int &dimension){ // gera o vector que contém os subtours // tem que arrumar essa
+vector<vector<int>> generate_subtours(hungarian_problem_t p){ // gera o vector que guarda os subtours
 	vector<vector<int>> subtour_vector;
-    vector<int> available_nodes(dimension);
+    vector<int> available_nodes(p.num_rows);
 
-    // Cria a lista dos nós ainda disponíveis
-    for(int i = 0; i < dimension; i++)
+    // Cria vector dos nós ainda disponíveis
+    for(int i = 0; i < p.num_rows; i++) // preenche vector dos nós dispońiveis
         available_nodes[i] = i + 1;
 
     while(!available_nodes.empty()){ // Vai executando até analisar todos os nós
         int last_node = available_nodes[0]; // Primeiro nó do tour
         int node_aux = last_node;
 
-        vector<int> tour;
+        vector<int> tour; // tour que será gerado
         tour.push_back(last_node); // insere o primeiro nó dos disponíveis no tour que está sendo formado
 
         do{
-            for(int j = 0; j < dimension; j++){
-                if(m[node_aux - 1][j] == 1){
+            for(int j = 0; j < p.num_rows; j++){
+                if(p.assignment[node_aux - 1][j] == 1){
                     node_aux = j + 1;
-                    available_nodes.erase(remove(available_nodes.begin(), available_nodes.end(), node_aux), available_nodes.end()); // infelizmente n tem simples função p remover um elemento específico, tem q utilizar esse método
+					 // infelizmente n tem simples função p remover um elemento específico, tem q utilizar esse método
+                    available_nodes.erase(remove(available_nodes.begin(), available_nodes.end(), node_aux), available_nodes.end());
                         break;
                 }
             }
-            tour.push_back(node_aux);
+            tour.push_back(node_aux); // insere nó no tour
 
-        }while(node_aux != last_node);
-        	subtour_vector.push_back(tour);
+        }while(node_aux != last_node); // até o "último" nó encontrar com o primeiro
+        	subtour_vector.push_back(tour); // insere tour no vector de tours
     }
     
     // for(int i = 0; i < subtour_vector.size(); i++){ // pra debugar
@@ -166,7 +167,7 @@ vector<int> getSolutionHungarian(Node &node, Data *data){
 	double obj_value = hungarian_solve(&p); // depois guarda o custo da solução gerada pelo algoritmo húngaro
     node.cost = obj_value; // e atribui esse custo à solução sendo gerada
     
-    vector<vector<int>> subtour_vector = generate_subtours(p.assignment, p.num_rows); // e por último guarda o vector que contém os subtours
+    vector<vector<int>> subtour_vector = generate_subtours(p); // e por último guarda o vector que contém os subtours
 
 	node.feasible = subtour_vector.size() == 1 ? true : false; // se tiver só um subtour a solução é declarada com válida
     node.subtours = subtour_vector; // atribui o vector com os subtours previamente gerados à solução
