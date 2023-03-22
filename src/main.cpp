@@ -24,11 +24,14 @@ typedef struct Node{ // Estrutura de cada nó da árvore a ser utilizada no algo
     vector<pair<int, int>> forbidden_arcs; // Vector de arcos proibidos, terão o custo 9999999 para não serem escolhidos
     vector<vector<int>> subtours; // Conjunto de subtours da solução gerada pelo Algoritmo Húngaro
     
-    double lower_bound = 0; // Lower Bound do nó (ou cost total da solucao do Algoritmo Húngaro)
-    int pick = 0; // Indicador de qual subtour foi/será escolhido
+    double lower_bound = 0; // Lower Bound do nó (ou custo total da solução do Algoritmo Húngaro)
+    int pick = 0; // Indicador de qual subtour foi escolhido, quase sempre vai ser o menor aqui nesse código
     bool feasible; // Se a solução do gerada pelo Assignment Problem é viável para o TSP ou não
-    double cost; // Custo total da solução em questão
+    double cost; // Custo total da solução 
 
+	// bool operator == (const Node& rhs){
+	// 	this->subtours == rhs.subtours;
+	// }
 }Node;
 
 // Função auxiliar
@@ -76,15 +79,14 @@ void show_info(Node node){ // exibe todas as informações da solução
 }
 
 // Função auxiliar
-int subtour_pick(const vector<vector<int>> &subtour_vector){ // escolhe o subtour de menor tamanho dentro do vector que contém todos os subtours
-    int tour = 0;
-
+int subtour_pick(const vector<vector<int>> &subtour_vector){ // escolhe o subtour de menor tamanho para continuar o algoritmo
+    int smallest;
     for(int i = 1; i < subtour_vector.size(); i++){
         if(subtour_vector[i].size() < subtour_vector[0].size()){ // se o subtour atual for menor que o primeiro subtour, ele é "escolhido"
-            tour = i; // salva o índice de qual é o menor subtour
+            smallest = i; // salva o índice de qual é o menor subtour
         }
     }
-    return tour;
+    return smallest;
 }
 
 // Função core
@@ -144,7 +146,7 @@ vector<vector<int>> generate_subtours(hungarian_problem_t p){ // gera o vector q
 // }
 
 // Função core
-vector<int> getSolutionHungarian(Node &node, Data *data){
+void getSolutionHungarian(Node &node, Data *data){
 	// Precisamos criar arcos proibidos, e p/ isso a gente vai ter que alterar os custos da matriz de custos, todavida não podemos alterar a matriz
 	// original pra não dar problema no algoritmo, por isso a gente vai criar uma matriz de custos "provisória" aqui, de forma que a gente consiga
 	// gerar uma criar a matriz alterada, gerar uma solução a partir dessa matriz com os arcos proibidos e dps a gente só libera ela
@@ -167,10 +169,8 @@ vector<int> getSolutionHungarian(Node &node, Data *data){
 	double obj_value = hungarian_solve(&p); // depois guarda o custo da solução gerada pelo algoritmo húngaro
     node.cost = obj_value; // e atribui esse custo à solução sendo gerada
     
-    vector<vector<int>> subtour_vector = generate_subtours(p); // e por último guarda o vector que contém os subtours
-
-	node.feasible = subtour_vector.size() == 1 ? true : false; // se tiver só um subtour a solução é declarada com válida
-    node.subtours = subtour_vector; // atribui o vector com os subtours previamente gerados à solução
+    node.subtours = generate_subtours(p); // atribui o vector com os subtours gerados à solução atual
+	node.feasible = node.subtours.size() == 1 ? true : false; // se tiver só um subtour a solução é declarada com válida
 	
 	for (int i = 0; i < data->getDimension(); i++){
 		delete [] cost[i];
@@ -178,14 +178,20 @@ vector<int> getSolutionHungarian(Node &node, Data *data){
 	delete [] cost;
 	hungarian_free(&p);
 
-    return subtour_vector[subtour_pick(subtour_vector)]; // retorna 
+
+	int smallest_subtour = 0;
+    for(int i = 1; i < node.subtours.size(); i++){
+        if(node.subtours[i].size() < node.subtours[0].size()){ // se o subtour atual for menor que o primeiro subtour, ele é "escolhido"
+            smallest_subtour = i; // salva o índice de qual é o menor subtour
+        }
+    }
+	node.pick = smallest_subtour;
 }
 
 Node BranchBound_BFS(Data *data, double **cost){
 	Node root; // cria o nó raíz da árvore
     Node best_solution; // cria o nó em que será guardada a melhor solução
 	best_solution.cost = numeric_limits<double>::infinity(); // seta o custo da melhor solução inicialmente para "infinito"
-	vector<int> q_subtour; // cria o vector que guardará o subtour atual que estaremos analisando e construindo
 	list<Node> tree;
 	tree.push_back(root); // cria a árvore que será preenchida e feita a busca nela
     // a "árvore" será na verdade uma lista em que iremos inserindo e removendo no começo e/ou no final de acordo com o algortimo
@@ -193,9 +199,11 @@ Node BranchBound_BFS(Data *data, double **cost){
 	double upper_bound = 99999999; // "qualquer", ou seja, o primeiro upper_bound encontrado já será atribuído a essa variável devido ao seu custo
 
 	while(!tree.empty()){ // equanto todos os nós da árvore não forem analisados
-    	auto node = tree.begin(); // vai pelo primeiro nó -> BFS strategy
+    	// Node node = tree.front(); // vai pelo primeiro nó -> BFS strategy
+		
+    	auto node = tree.begin(); // vai pelo último nó -> DFS strategy
 
-		q_subtour = getSolutionHungarian(*node, data); // calcula a solução do subtour atual
+		getSolutionHungarian(*node, data); // calcula a solução do subtour atual
 
         // se for debugar descomenta a linha de baixo, mas o melhor pra debuggar é logo aqui embaixo na linha 231
         // show_info(*node);
@@ -217,21 +225,21 @@ Node BranchBound_BFS(Data *data, double **cost){
 		}
         // Solução inviável foi gerada, caso queira olhar as soluções geradas na execução do algoritmo descomenta "show_info()"
         // else{
-        //         // show_info(node);
+                // show_info(*node);
         // }
         
-		for(int i = 0; i < q_subtour.size() - 1; i++){ // Adiciona folhas/filhos na árvore
+
+		for(int i = 0; i < node->subtours[node->pick].size() - 1; i++){ // Adiciona folhas/filhos na árvore
 			Node new_node;
 			new_node.forbidden_arcs = node->forbidden_arcs; // atribui os arcos proibidos do nó da árvore ao nó atual que será inserido no final da árvore
 
 			pair<int, int> new_forbidden_arc;
-			new_forbidden_arc.first = q_subtour[i];
-			new_forbidden_arc.second = q_subtour[i + 1];
+			new_forbidden_arc.first = node->subtours[node->pick][i];
+			new_forbidden_arc.second = node->subtours[node->pick][i + 1];
 
 			new_node.forbidden_arcs.push_back(new_forbidden_arc);
 			tree.insert(tree.end(), new_node); // insere novos nós na árvore de busca
 		}
-
 		tree.erase(node);
 	}
 
@@ -242,7 +250,6 @@ Node BranchBound_DFS(Data *data, double **cost){ // executa o algoritmo utilizan
 	Node root; // cria o nó raíz da árvore
     Node best_solution; // cria o nó em que será guardada a melhor solução
 	best_solution.cost = numeric_limits<double>::infinity(); // seta o custo da melhor solução inicialmente para "infinito"
-	vector<int> q_subtour; // cria o vector que guardará o subtour atual que estaremos analisando e construindo
 	list<Node> tree;
 	tree.push_back(root); // cria a árvore que será preenchida e feita a busca nela
     // a "árvore" será na verdade uma lista em que iremos inserindo e removendo no começo e/ou no final de acordo com o algortimo
@@ -253,7 +260,7 @@ Node BranchBound_DFS(Data *data, double **cost){ // executa o algoritmo utilizan
     	// auto node = tree.end(); // assim não funciona, precisa ser assim aí na linha de baixo
     	auto node = prev(tree.end()); // vai pelo último nó -> DFS strategy
 
-		q_subtour = getSolutionHungarian(*node, data); // calcula a solução do subtour atual
+		getSolutionHungarian(*node, data); // calcula a solução do subtour atual
 
         // se for debugar descomenta a linha de baixo, mas o melhor pra debuggar é logo aqui embaixo na linha 231
         // show_info(*node);
@@ -278,13 +285,17 @@ Node BranchBound_DFS(Data *data, double **cost){ // executa o algoritmo utilizan
         //         // show_info(node);
         // }
         
-		for(int i = 0; i < q_subtour.size() - 1; i++){ // Adiciona folhas/filhos na árvore
+		// aqui tava dando mt problema pq o (node.subtours[i].size()) nunca era < que (node.subtours[0].size()) no final da função getSolutionHungarian() então
+		// o node->pick não era escolhido, fazendo com que ele ficasse com o valor inicializado, e eu não setava ele inicialmente pra 0, então ele pegava lixo
+		// de memória. Logo, esse loop aqui de baixo nunca era inicializado e bugava o código. Pra arrumar só seto o pick inicial pra zero, ou seja, se ele não
+		// achar nenhum tour menor pra escolher, (todos são do mesmo tamanho), ele escolhe o primeiro.
+		for(int i = 0; i < node->subtours[node->pick].size() - 1; i++){ // Adiciona folhas/filhos na árvore
 			Node new_node;
 			new_node.forbidden_arcs = node->forbidden_arcs; // atribui os arcos proibidos do nó da árvore ao nó atual que será inserido no final da árvore
 
 			pair<int, int> new_forbidden_arc;
-			new_forbidden_arc.first = q_subtour[i];
-			new_forbidden_arc.second = q_subtour[i + 1];
+			new_forbidden_arc.first = node->subtours[node->pick][i];
+			new_forbidden_arc.second = node->subtours[node->pick][i + 1];
 
 			new_node.forbidden_arcs.push_back(new_forbidden_arc);
 			tree.insert(tree.end(), new_node); // insere novos nós na árvore de busca
@@ -300,7 +311,6 @@ Node BranchBound_LB(Data *data, double **cost){ // executa o algoritmo utilizand
 	Node root; // cria o nó raíz da árvore
     Node best_solution; // cria o nó em que será guardada a melhor solução
 	best_solution.cost = numeric_limits<double>::infinity(); // seta o custo da melhor solução inicialmente para "infinito"
-	vector<int> q_subtour; // cria o vector que guardará o subtour atual que estaremos analisando e construindo
 	list<Node> tree;
 	tree.push_back(root); // cria a árvore que será preenchida e feita a busca nela
     // a "árvore" será na verdade uma lista em que iremos inserindo e removendo no começo e/ou no final de acordo com o algortimo
@@ -327,7 +337,7 @@ Node BranchBound_LB(Data *data, double **cost){ // executa o algoritmo utilizand
 			}
 		}
 
-		q_subtour = getSolutionHungarian(*node, data); // calcula a solução do subtour atual
+		getSolutionHungarian(*node, data); // calcula a solução do subtour atual
 
         // se for debugar descomenta a linha de baixo, mas o melhor pra debuggar é logo aqui embaixo na linha 231
         // show_info(*node);
@@ -352,13 +362,13 @@ Node BranchBound_LB(Data *data, double **cost){ // executa o algoritmo utilizand
         //         // show_info(node);
         // }
         
-		for(int i = 0; i < q_subtour.size() - 1; i++){ // Adiciona folhas/filhos na árvore
+		for(int i = 0; i < node->subtours[node->pick].size() - 1; i++){ // Adiciona folhas/filhos na árvore
 			Node new_node;
 			new_node.forbidden_arcs = node->forbidden_arcs; // atribui os arcos proibidos do nó da árvore ao nó atual que será inserido no final da árvore
 
 			pair<int, int> new_forbidden_arc;
-			new_forbidden_arc.first = q_subtour[i];
-			new_forbidden_arc.second = q_subtour[i + 1];
+			new_forbidden_arc.first = node->subtours[node->pick][i];
+			new_forbidden_arc.second = node->subtours[node->pick][i + 1];
 
 			new_node.forbidden_arcs.push_back(new_forbidden_arc);
 			tree.insert(tree.end(), new_node); // insere novos nós na árvore de busca
