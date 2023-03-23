@@ -201,7 +201,7 @@ Node BranchBound_BFS(Data *data, double **cost){
 	while(!tree.empty()){ // equanto todos os nós da árvore não forem analisados
     	// Node node = tree.front(); // vai pelo primeiro nó -> BFS strategy
 		
-    	auto node = tree.begin(); // vai pelo último nó -> DFS strategy
+    	auto node = tree.begin(); // vai pelo primeiro nó -> BFS strategy
 
 		getSolutionHungarian(*node, data); // calcula a solução do subtour atual
 
